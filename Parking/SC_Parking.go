@@ -34,10 +34,11 @@ func main() {
 	}
 }
 
-//structure for vehicles
-type Vehicle struct {
+//structure for service
+type Service struct {
 	ID     string `json:"id"`
 	Balance  int    `json:"balance"`
+	Cost  int    `json:"cost"`
 }
 
 // Init resets all the things
@@ -46,60 +47,19 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 		return nil, errors.New("No arguments required")
 	}
 
-	//Creating vehicle
-	var vehicle1 Vehicle
-	vehicle1.ID = "1"
-	vehicle1.Balance = 1000
+	//Creating service
+	var service1 Service
+	service1.ID = "Parking"
+	service1.Balance = 0
+	service1.Cost = 10
 
-	b, err := json.Marshal(vehicle1)
-	if err != nil {
-		fmt.Println(err)
-		return nil, errors.New("Errors while creating json string for vehicle 1")
-	}
-
-	err = stub.PutState("1", b)
-	if err != nil {
-		return nil, err
-	}
-
-	//Creating 3 services
-	var service1, service2, service3 Service
-	service1.Type = "Wash"
-	service1.Cost = 15
-	service2.Type = "Parking"
-	service2.Cost = 20
-	service3.Type = "Toll"
-	service3.Cost = 10
-
-	b, err = json.Marshal(service1)
+	b, err := json.Marshal(service1)
 	if err != nil {
 		fmt.Println(err)
 		return nil, errors.New("Errors while creating json string for service 1")
 	}
 
-	err = stub.PutState("Wash", b)
-	if err != nil {
-		return nil, err
-	}
-
-	b, err = json.Marshal(service2)
-	if err != nil {
-		fmt.Println(err)
-		return nil, errors.New("Errors while creating json string for service 2")
-	}
-
 	err = stub.PutState("Parking", b)
-	if err != nil {
-		return nil, err
-	}
-
-	b, err = json.Marshal(service3)
-	if err != nil {
-		fmt.Println(err)
-		return nil, errors.New("Errors while creating json string for service 3")
-	}
-
-	err = stub.PutState("Toll", b)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +74,8 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 	// Handle different functions
 	if function == "init" {
 		return t.Init(stub, "init", args)
-	} else if function == "sendPayment"{
-		return t.avail_service(stub, args)
+	} else if function == "recievePayment"{
+		return t.recievePayment(stub, args)
 	}
 	fmt.Println("invoke did not find func: " + function)
 
@@ -129,49 +89,40 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function strin
 	// Handle different functions
 	if function == "checkBalance" { //read a variable
 		return t.checkBalance(stub, args)
+	} else if function == "getCost"{
+		return t.getCost(stub, args)
 	}
 	fmt.Println("query did not find func: " + function)
 
 	return nil, errors.New("Received unknown function query: " + function)
 }
 
-//Function to transfer funds from one account to another
-func (t *SimpleChaincode) sendPayment(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+//Function to add payment to the service balance
+func (t *SimpleChaincode) recievePayment(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var jsonResp string
 
-	if len(args) != 2 {
-		return nil, errors.New("Incorrect number of arguments. Expecting 2")
+	if len(args) != 1 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 1")
 	}
 
-	var vehicle Vehicle
-	var amount int
+	var service Service
 
-
-	vehicleAsBytes, err := stub.GetState(args[0])
+	serviceAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		jsonResp = "{\"Error\":\"Failed to get state for " + args[0] + "\"}"
 		return nil, errors.New(jsonResp)
 	}
-	err = json.Unmarshal(vehicleAsBytes, &vehicle)
+	err = json.Unmarshal(serviceAsBytes, &service)
 	if err != nil {
-		return nil, errors.New("Failed to marshal string to struct of accFrom")
+		return nil, errors.New("Failed to marshal string to struct of service")
 	}
 
-	amount, err = strconv.Atoi(args[1])
-	if err != nil {
-		return nil, errors.New("Enter an integer value in the 'Amount'")
-	}
+	service.Balance = service.Balance + service.Cost
 
-	if vehicle.Balance < amount {
-		return nil, errors.New("Insufficient Balance")
-	}
-
-	vehicle.Balance = vehicle.Balance - amount
-
-	b, err := json.Marshal(vehicle)
+	b, err := json.Marshal(service)
 	if err != nil {
 		fmt.Println(err)
-		return nil, errors.New("Errors while creating json string for account 1")
+		return nil, errors.New("Errors while creating json string for service")
 	}
 
 	err = stub.PutState(args[0], b)
@@ -182,7 +133,7 @@ func (t *SimpleChaincode) sendPayment(stub shim.ChaincodeStubInterface, args []s
 	return nil, nil
 }
 
-//Function to check balances
+//Function to check balance
 func (t *SimpleChaincode) checkBalance(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var jsonResp string
 
@@ -190,24 +141,54 @@ func (t *SimpleChaincode) checkBalance(stub shim.ChaincodeStubInterface, args []
 		return nil, errors.New("Incorrect number of arguments. Expecting 1")
 	}
 
-	var vehicle Vehicle
+	var service Service
 	var balance int
 
-	vehicleAsBytes, err := stub.GetState(args[0])
+	serviceAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		jsonResp = "{\"Error\":\"Failed to get state for " + args[0] + "\"}"
 		return nil, errors.New(jsonResp)
 	}
-	err = json.Unmarshal(vehicleAsBytes, &vehicle)
+	err = json.Unmarshal(serviceAsBytes, &service)
 	if err != nil {
-		return nil, errors.New("Failed to marshal string to struct of accCurrent")
+		return nil, errors.New("Failed to marshal string to struct of service")
 	}
 
-	balance = vehicle.Balance
+	balance = service.Balance
 	balanceAsBytes, err := json.Marshal(balance)
 	if err != nil {
 		return nil, errors.New("Failed to marshal balance")
 	}
 
 	return balanceAsBytes, nil
+}
+
+//Function to check balance
+func (t *SimpleChaincode) getCost(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+	var jsonResp string
+
+	if len(args) != 1 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 1")
+	}
+
+	var service Service
+	var cost int
+
+	serviceAsBytes, err := stub.GetState(args[0])
+	if err != nil {
+		jsonResp = "{\"Error\":\"Failed to get state for " + args[0] + "\"}"
+		return nil, errors.New(jsonResp)
+	}
+	err = json.Unmarshal(serviceAsBytes, &service)
+	if err != nil {
+		return nil, errors.New("Failed to marshal string to struct of service")
+	}
+
+	cost = service.Cost
+	costAsBytes, err := json.Marshal(cost)
+	if err != nil {
+		return nil, errors.New("Failed to marshal balance")
+	}
+
+	return costAsBytes, nil
 }
