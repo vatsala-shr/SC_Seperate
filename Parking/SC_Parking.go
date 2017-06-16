@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"encoding/json"
+	"strconv"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 )
 
@@ -101,11 +102,12 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function strin
 func (t *SimpleChaincode) recievePayment(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var jsonResp string
 
-	if len(args) != 1 {
-		return nil, errors.New("Incorrect number of arguments. Expecting 1")
+	if len(args) != 2 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 2")
 	}
 
 	var service Service
+	var amount int
 
 	serviceAsBytes, err := stub.GetState(args[0])
 	if err != nil {
@@ -117,7 +119,12 @@ func (t *SimpleChaincode) recievePayment(stub shim.ChaincodeStubInterface, args 
 		return nil, errors.New("Failed to marshal string to struct of service")
 	}
 
-	service.Balance = service.Balance + service.Cost
+	amount, err = strconv.Atoi(args[1])
+	if err != nil {
+		return nil, errors.New("Enter an integer value in the 'Amount'")
+	}
+
+	service.Balance = service.Balance + amount
 
 	b, err := json.Marshal(service)
 	if err != nil {
